@@ -6,8 +6,10 @@ import (
 	"os"
 
 	"github.com/IBM/sarama"
+	"github.com/WilliamJohnathonLea/restaurants-orders/consumer"
 	"github.com/gocraft/dbr/v2"
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -42,7 +44,7 @@ func main() {
 
 	// Set up Order Consumer
 	kafkaConf := sarama.NewConfig()
-	consumer, err := NewKafkaConsumer(kafkaConf, sess, bootstrapServers, topics)
+	consumer, err := consumer.NewKafkaConsumer(kafkaConf, sess, bootstrapServers, topics)
 	if err != nil {
 		log.Fatal("failed to initialise kafka consumer")
 	}
