@@ -1,16 +1,36 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/IBM/sarama"
 	"github.com/gocraft/dbr/v2"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	dbUrl := "postgres://postgres:postgres@localhost:5432/restaurants?sslmode=disable"
-	bootstrapServers := []string{"localhost:9092"}
-	topics := []string{"orders"}
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("failed to load environment")
+	}
+
+	dbUsername := os.Getenv("DB_USERNAME")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbHost := os.Getenv("DB_HOST")
+
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	ordersIngestTopic := os.Getenv("ORDERS_INGESTION_TOPIC")
+
+	dbUrl := fmt.Sprintf(
+		"postgres://%s:%s@%s/restaurants?sslmode=disable",
+		dbUsername,
+		dbPassword,
+		dbHost,
+	)
+	bootstrapServers := []string{kafkaBroker}
+	topics := []string{ordersIngestTopic}
 
 	// Open DB connection
 	conn, err := dbr.Open("postgres", dbUrl, nil)
