@@ -1,0 +1,12 @@
+{
+    "restaurantId": "e37dca8d-1210-4af1-bc65-1eccf2624a93",
+    "items": [
+        {
+            "itemId": "c33761f0-f70a-49ef-9f8a-1f83ca17d2cf",
+            "name": "Tomato soup",
+            "price": 1.99,
+            "quantity": 1
+        }
+    ],
+    "createdAt": "2024-01-01T01:00:00Z"
+}
