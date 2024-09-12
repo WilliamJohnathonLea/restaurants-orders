@@ -27,12 +27,16 @@ type Order struct {
 	CompletedAt  *time.Time `json:"completedAt,omitempty"`
 }
 
+// Inserts a new Order and its LineItems to the database.
+//
+// Use a transaction around this function so that if an error occurs,
+// the database doesn't contain Orders with no LineItems.
 func InsertNewOrder(s *dbr.Session, o Order) error {
 	// Adjust timezones to UTC
 	o.CreatedAt = o.CreatedAt.UTC()
-	if o.CompletedAt != nil {
-		*o.CompletedAt = o.CompletedAt.UTC()
-	}
+
+	// NOTE: DO NOT write the CompletedAt field to the db here.
+	// New orders MUST NOT be submitted as completed.
 
 	// Insert Order
 	_, err := s.InsertInto("orders").

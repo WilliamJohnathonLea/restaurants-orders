@@ -14,7 +14,6 @@ import (
 type Consumer interface {
 	io.Closer
 	Consume() error
-	ConsumeContext(context.Context) error
 }
 
 type KafkaConsumer struct {
@@ -46,11 +45,7 @@ func NewKafkaConsumer(
 
 // Implement the Consumer interface
 func (k KafkaConsumer) Consume() error {
-	return k.ConsumeContext(context.Background())
-}
-
-func (k KafkaConsumer) ConsumeContext(ctx context.Context) error {
-	return k.consumerGroup.Consume(ctx, k.topics, k)
+	return k.consumerGroup.Consume(context.Background(), k.topics, k)
 }
 
 // Implement the io.Closer interface
