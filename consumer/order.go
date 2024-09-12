@@ -56,32 +56,3 @@ func InsertNewOrder(s *dbr.Session, o Order) error {
 
 	return err
 }
-
-func GetOrderByID(s *dbr.Session, orderID string) (Order, error) {
-	var order Order
-	var items []LineItem
-
-	err := s.Select("id", "restaurant_id", "created_at", "completed_at").
-		From("orders").
-		Where("id = ?", orderID).
-		LoadOne(&order)
-
-	if err != nil {
-		return order, err
-	}
-
-	// adjust timezone to UTC
-	order.CreatedAt = order.CreatedAt.UTC()
-	if order.CompletedAt != nil {
-		*order.CompletedAt = order.CompletedAt.UTC()
-	}
-
-	_, err = s.Select("id", "order_id", "item_id", "name", "price", "quantity").
-		From("line_items").
-		Where("order_id = ?", order.ID).
-		Load(&items)
-
-	order.Items = items
-
-	return order, err
-}
