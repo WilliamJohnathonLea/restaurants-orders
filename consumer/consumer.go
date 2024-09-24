@@ -86,12 +86,10 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 				return err
 			}
 			// 2. Apply a new unique ID for the order and its Items
-			newOrderID := uuid.NewString()
-			order.ID = newOrderID
+			order.ID = uuid.NewString()
 			for idx := range order.Items {
-				newLineItemID := uuid.NewString()
-				order.Items[idx].ID = newLineItemID
-				order.Items[idx].OrderID = newOrderID
+				order.Items[idx].ID = uuid.NewString()
+				order.Items[idx].OrderID = order.ID
 			}
 			// 3. Save the order to the database
 			err = InsertNewOrder(k.DB, order)
@@ -99,7 +97,22 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 				log.Printf("error saving order %s", err.Error())
 				return err
 			}
-			// 4. Notify Restaurant about new order
+			// 4. Notify User the order is submitted
+			userNotif := notifier.RabbitNotification{
+				Exchange:   "user_notifications",
+				RoutingKey: order.UserID,
+				Body:       []byte(order.ID),
+			}
+			err = k.Notifier.Notify(userNotif)
+			if err != nil {
+				log.Printf(
+					"error notifying user %s of order %s",
+					order.UserID,
+					order.ID,
+				)
+				return err
+			}
+			// 5. Notify Restaurant about new order
 			restNotif := notifier.RabbitNotification{
 				Exchange:   "restaurant_notifications",
 				RoutingKey: order.RestaurantID,
