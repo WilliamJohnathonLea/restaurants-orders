@@ -21,37 +21,20 @@ func (rn *RabbitNotifer) Close() error {
 	return errors.Join(chanErr, connErr)
 }
 
-func (rn *RabbitNotifer) Notify(restaurantID, orderID string) error {
-	// Declare the queue in case it doesn't exist
-	// This action is idempotent as per the API
-	q, err := rn.channel.QueueDeclare(
-		"order_notifications_"+restaurantID,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
-
-	// Send notification
-	err = rn.channel.Publish(
-		"",     // exchange
-		q.Name, // queue
+func (rn *RabbitNotifer) Notify(notification RabbitNotification) error {
+	// The exchange, queue and bind are assumed to be in place
+	err := rn.channel.Publish(
+		notification.Exchange,
+		notification.RoutingKey,
 		false,
 		false,
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte(orderID),
+			Body:        notification.Body,
 		},
 	)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func WithURL(url string) RabbitOpts {

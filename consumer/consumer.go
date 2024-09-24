@@ -32,8 +32,8 @@ func NewKafkaConsumer(
 	topics []string,
 ) (Consumer, error) {
 	consumer := &KafkaConsumer{
-		topics: topics,
-		DB:     db,
+		topics:   topics,
+		DB:       db,
 		Notifier: notifier,
 	}
 
@@ -100,7 +100,12 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 				return err
 			}
 			// 4. Notify Restaurant about new order
-			err = k.Notifier.Notify(order.RestaurantID, order.ID)
+			restNotif := notifier.RabbitNotification{
+				Exchange:   "restaurant_notifications",
+				RoutingKey: order.RestaurantID,
+				Body:       []byte(order.ID),
+			}
+			err = k.Notifier.Notify(restNotif)
 			if err != nil {
 				log.Printf(
 					"error notifying restaurant %s of order %s",
