@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/IBM/sarama"
+	"github.com/WilliamJohnathonLea/restaurants-orders/notifier"
 	"github.com/gocraft/dbr/v2"
 	"github.com/google/uuid"
 )
@@ -20,17 +21,20 @@ type KafkaConsumer struct {
 	topics        []string
 	consumerGroup sarama.ConsumerGroup
 	DB            *dbr.Session
+	Notifier      *notifier.RabbitNotifer
 }
 
 func NewKafkaConsumer(
 	conf *sarama.Config,
 	db *dbr.Session,
+	notifier *notifier.RabbitNotifer,
 	bootstrapServers []string,
 	topics []string,
 ) (Consumer, error) {
 	consumer := &KafkaConsumer{
 		topics: topics,
 		DB:     db,
+		Notifier: notifier,
 	}
 
 	grp, err := sarama.NewConsumerGroup(bootstrapServers, "orders", conf)
@@ -96,7 +100,15 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 				return err
 			}
 			// 4. Notify Restaurant about new order
-			// TODO
+			err = k.Notifier.Notify(order.RestaurantID, order.ID)
+			if err != nil {
+				log.Printf(
+					"error notifying restaurant %s of order %s",
+					order.RestaurantID,
+					order.ID,
+				)
+				return err
+			}
 
 			return nil
 		})

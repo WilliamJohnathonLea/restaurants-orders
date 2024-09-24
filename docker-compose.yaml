@@ -1,12 +1,12 @@
 services:
   postgres:
-    image: postgres:16  # Use the official PostgreSQL image
-    container_name: postgres  # Optional: Set a custom container name
+    image: postgres:16
+    container_name: postgres
     environment:
       POSTGRES_DB: restaurants
       POSTGRES_PASSWORD: postgres  # Replace with your desired password
     ports:
-      - "5432:5432"  # Map the container's PostgreSQL port to the host
+      - "5432:5432"
 
   zookeeper.service:
     container_name: zookeeper
@@ -30,3 +30,13 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  rabbitmq.service:
+    image: rabbitmq:4-management
+    container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"   # Exposing RabbitMQ port
+      - "15672:15672" # Exposing RabbitMQ management plugin UI port
