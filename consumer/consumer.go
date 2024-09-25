@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 
@@ -69,6 +70,12 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 	log.Printf("received claim on %s:%d", claim.Topic(), claim.Partition())
 	for message := range claim.Messages() {
 		log.Println("processing message")
+		userID, err := getUserIDHeader(message.Headers)
+		if err != nil {
+			log.Println(err.Error())
+			session.MarkMessage(message, "")
+			continue
+		}
 
 		// Create DB transaction
 		tx, err := k.DB.Begin()
@@ -77,7 +84,7 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 			continue
 		}
 
-		withTx(tx, func() error {
+		err = withTx(tx, func() error {
 			// 1. Unmarshal the JSON
 			var order Order
 			err := json.Unmarshal(message.Value, &order)
@@ -98,43 +105,37 @@ func (k KafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 				return err
 			}
 			// 4. Notify User the order is submitted
-			userNotif := notifier.RabbitNotification{
-				Exchange:   "user_notifications",
-				RoutingKey: order.UserID,
-				Body:       []byte(order.ID),
-			}
-			err = k.Notifier.Notify(userNotif)
+			err = notifyUser(k.Notifier, order.UserID, []byte(order.ID))
 			if err != nil {
-				log.Printf(
-					"error notifying user %s of order %s",
-					order.UserID,
-					order.ID,
-				)
 				return err
 			}
 			// 5. Notify Restaurant about new order
-			restNotif := notifier.RabbitNotification{
-				Exchange:   "restaurant_notifications",
-				RoutingKey: order.RestaurantID,
-				Body:       []byte(order.ID),
-			}
-			err = k.Notifier.Notify(restNotif)
+			err = notifyRestaurant(k.Notifier, order.RestaurantID, []byte(order.ID))
 			if err != nil {
-				log.Printf(
-					"error notifying restaurant %s of order %s",
-					order.RestaurantID,
-					order.ID,
-				)
 				return err
 			}
 
 			return nil
 		})
 
+		if err != nil {
+			notifyUser(k.Notifier, userID, []byte("failed to process order"))
+		}
+
 		session.MarkMessage(message, "")
 	}
 
 	return nil
+}
+
+func getUserIDHeader(hds []*sarama.RecordHeader) (string, error) {
+	for _, h := range hds {
+		hk := string(h.Key)
+		if hk == "user_id" {
+			return string(h.Value), nil
+		}
+	}
+	return "", errors.New("kafka message headers did not contain user_id")
 }
 
 func withTx(tx *dbr.Tx, fn func() error) error {
@@ -144,4 +145,40 @@ func withTx(tx *dbr.Tx, fn func() error) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+func notifyUser(rn *notifier.RabbitNotifer, userID string, body []byte) error {
+	notification := notifier.RabbitNotification{
+		Exchange:   "user_notifications",
+		RoutingKey: userID,
+		Body:       body,
+	}
+	err := rn.Notify(notification)
+	if err != nil {
+		log.Printf(
+			"error notifying user %s %s",
+			userID,
+			err.Error(),
+		)
+	}
+
+	return err
+}
+
+func notifyRestaurant(rn *notifier.RabbitNotifer, restaurantID string, body []byte) error {
+	notification := notifier.RabbitNotification{
+		Exchange:   "restaurant_notifications",
+		RoutingKey: restaurantID,
+		Body:       body,
+	}
+	err := rn.Notify(notification)
+	if err != nil {
+		log.Printf(
+			"error notifying restaurant %s %s",
+			restaurantID,
+			err.Error(),
+		)
+	}
+
+	return err
 }
