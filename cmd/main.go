@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/IBM/sarama"
 	"github.com/WilliamJohnathonLea/restaurants-orders/consumer"
@@ -38,6 +40,9 @@ func main() {
 	)
 	bootstrapServers := []string{kafkaBroker}
 	topics := []string{ordersIngestTopic}
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Open DB connection
 	conn, err := dbr.Open("postgres", dbUrl, nil)
@@ -76,6 +81,7 @@ func main() {
 	}
 	defer consumer.Close()
 
-	consumer.Consume()
+	go consumer.Consume()
+	<-sigs
 
 }

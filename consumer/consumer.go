@@ -59,10 +59,12 @@ func (k KafkaConsumer) Close() error {
 }
 
 func (KafkaConsumer) Setup(session sarama.ConsumerGroupSession) error {
+	log.Println("starting kafka consumer")
 	return nil
 }
 
 func (KafkaConsumer) Cleanup(session sarama.ConsumerGroupSession) error {
+	log.Println("cleaning up kafka consumer")
 	return nil
 }
 
