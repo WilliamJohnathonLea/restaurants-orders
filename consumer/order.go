@@ -30,9 +30,9 @@ type Order struct {
 
 // Inserts a new Order and its LineItems to the database.
 //
-// Use a transaction around this function so that if an error occurs,
+// This uses a transaction so that if an error occurs,
 // the database doesn't contain Orders with no LineItems.
-func InsertNewOrder(s *dbr.Session, o Order) error {
+func InsertNewOrder(tx *dbr.Tx, o Order) error {
 	// Adjust timezones to UTC
 	o.CreatedAt = o.CreatedAt.UTC()
 
@@ -40,7 +40,7 @@ func InsertNewOrder(s *dbr.Session, o Order) error {
 	// New orders MUST NOT be submitted as completed.
 
 	// Insert Order
-	_, err := s.InsertInto("orders").
+	_, err := tx.InsertInto("orders").
 		Columns("id", "restaurant_id", "user_id", "created_at").
 		Values(o.ID, o.RestaurantID, o.UserID, o.CreatedAt).
 		Exec()
@@ -50,7 +50,7 @@ func InsertNewOrder(s *dbr.Session, o Order) error {
 	}
 
 	// Insert Items of the Order
-	baseQuery := s.InsertInto("line_items").
+	baseQuery := tx.InsertInto("line_items").
 		Columns("id", "order_id", "item_id", "name", "price", "quantity")
 
 	for _, item := range o.Items {

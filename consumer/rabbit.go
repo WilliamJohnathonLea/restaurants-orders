@@ -67,7 +67,7 @@ func (rc *RabbitConsumer) Consume(ctx context.Context) error {
 				order.Items[idx].OrderID = order.ID
 			}
 			// 3. Save the order to the database
-			err = InsertNewOrder(rc.db, order)
+			err = InsertNewOrder(tx, order)
 			if err != nil {
 				log.Printf("error saving order %s", err.Error())
 				return err
