@@ -1,24 +1,13 @@
 package notifier
 
-import (
-	"errors"
-
-	amqp "github.com/rabbitmq/amqp091-go"
-)
-
-type RabbitOpts func(*RabbitNotifer)
+import amqp "github.com/rabbitmq/amqp091-go"
 
 type RabbitNotifer struct {
-	amqpUrl string
-	conn    *amqp.Connection
 	channel *amqp.Channel
 }
 
 func (rn *RabbitNotifer) Close() error {
-	chanErr := rn.channel.Close()
-	connErr := rn.conn.Close()
-
-	return errors.Join(chanErr, connErr)
+	return rn.channel.Close()
 }
 
 func (rn *RabbitNotifer) Notify(notification RabbitNotification) error {
@@ -37,30 +26,14 @@ func (rn *RabbitNotifer) Notify(notification RabbitNotification) error {
 	return err
 }
 
-func WithURL(url string) RabbitOpts {
-	return func(rn *RabbitNotifer) {
-		rn.amqpUrl = url
-	}
-}
-
-func NewRabbitNotifier(opts ...RabbitOpts) (*RabbitNotifer, error) {
+func NewRabbitNotifier(conn *amqp.Connection) (*RabbitNotifer, error) {
 	rn := &RabbitNotifer{}
 
-	for _, opt := range opts {
-		opt(rn)
-	}
-
-	rabbitConn, err := amqp.Dial(rn.amqpUrl)
+	rabbitCh, err := conn.Channel()
 	if err != nil {
 		return nil, err
 	}
 
-	rabbitCh, err := rabbitConn.Channel()
-	if err != nil {
-		return nil, err
-	}
-
-	rn.conn = rabbitConn
 	rn.channel = rabbitCh
 
 	return rn, nil

@@ -1,18 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
-	"github.com/IBM/sarama"
 	"github.com/WilliamJohnathonLea/restaurants-orders/consumer"
 	"github.com/WilliamJohnathonLea/restaurants-orders/notifier"
 	"github.com/gocraft/dbr/v2"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() {
@@ -25,8 +27,7 @@ func main() {
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbHost := os.Getenv("DB_HOST")
 
-	kafkaBroker := os.Getenv("KAFKA_BROKER")
-	ordersIngestTopic := os.Getenv("ORDERS_INGESTION_TOPIC")
+	ordersIngestQueue := os.Getenv("ORDERS_INGESTION_QUEUE")
 
 	amqpUsername := os.Getenv("AMQP_USERNAME")
 	amqpPassword := os.Getenv("AMQP_PASSWORD")
@@ -38,8 +39,6 @@ func main() {
 		dbPassword,
 		dbHost,
 	)
-	bootstrapServers := []string{kafkaBroker}
-	topics := []string{ordersIngestTopic}
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -59,29 +58,52 @@ func main() {
 		amqpPassword,
 		amqpHost,
 	)
-	rn, err := notifier.NewRabbitNotifier(
-		notifier.WithURL(amqpUrl),
-	)
+	amqpConn, err := amqp.Dial(amqpUrl)
 	if err != nil {
 		log.Fatal("failed to connect to rabbitmq")
+	}
+	defer amqpConn.Close()
+
+	// Set up Notifier
+	rn, err := notifier.NewRabbitNotifier(amqpConn)
+	if err != nil {
+		log.Fatal("failed to create rabbit notifier")
 	}
 	defer rn.Close()
 
 	// Set up Order Consumer
-	kafkaConf := sarama.NewConfig()
-	consumer, err := consumer.NewKafkaConsumer(
-		kafkaConf,
-		sess,
-		rn,
-		bootstrapServers,
-		topics,
-	)
+	rc, err := consumer.NewRabbitConsumer(amqpConn, sess, ordersIngestQueue)
 	if err != nil {
-		log.Fatal("failed to initialise kafka consumer")
+		log.Fatal("failed to create rabbit consumer")
 	}
-	defer consumer.Close()
+	defer rc.Close()
 
-	go consumer.Consume()
-	<-sigs
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// cancel is called here to handle the case where the Consumer
+		// stops due to an error.
+		defer cancel()
+		err := rc.Consume(ctx)
+		if err != nil {
+			log.Printf("consumer returned an error %s", err.Error())
+		}
+	}()
+
+	select {
+	case <-sigs:
+		cancel()
+		log.Println("application ternminated by signal")
+	case <-ctx.Done():
+		log.Println("consumer context cancelled")
+	}
+
+	log.Println("waiting for consumer process remaining messages")
+	wg.Wait()
+	log.Println("all done")
 
 }
