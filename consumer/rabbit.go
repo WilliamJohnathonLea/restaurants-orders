@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/WilliamJohnathonLea/restaurants-orders/db"
 	"github.com/gocraft/dbr/v2"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -21,15 +22,28 @@ func (rc *RabbitConsumer) Close() error {
 }
 
 func (rc *RabbitConsumer) Consume(ctx context.Context) error {
-	msgs, err := rc.channel.ConsumeWithContext(
-		ctx,
-		rc.queue, // queue
-		"",       // consumer
-		true,     // auto-ack
+	// Make sure ingestion queue is declared
+	q, err := rc.channel.QueueDeclare(
+		rc.queue, // name
+		true,     // durable
+		false,    // auto-delete
 		false,    // exclusive
-		false,    // no-local
 		false,    // no-wait
 		nil,      // args
+	)
+	if err != nil {
+		return err
+	}
+
+	msgs, err := rc.channel.ConsumeWithContext(
+		ctx,
+		q.Name, // queue
+		"",     // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
 	)
 	if err != nil {
 		return err
@@ -46,13 +60,12 @@ func (rc *RabbitConsumer) Consume(ctx context.Context) error {
 		// 	continue
 		// }
 
-
 		tx, err := rc.db.Begin()
 		if err != nil {
 			continue
 		}
 
-		withTx(tx, func() error {
+		db.WithTx(tx, func() error {
 			// 1. Unmarshal the JSON
 			var order Order
 			err := json.Unmarshal(msg.Body, &order)
@@ -72,6 +85,10 @@ func (rc *RabbitConsumer) Consume(ctx context.Context) error {
 				log.Printf("error saving order %s", err.Error())
 				return err
 			}
+
+			// 4. Notify user new order is created
+
+			// 5. Notify restaurant new order is created
 
 			return nil
 		})
