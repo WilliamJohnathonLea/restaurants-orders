@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/WilliamJohnathonLea/restaurants-orders/consumer"
-	"github.com/WilliamJohnathonLea/restaurants-orders/notifier"
 	"github.com/gocraft/dbr/v2"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -63,13 +62,6 @@ func main() {
 		log.Fatal("failed to connect to rabbitmq")
 	}
 	defer amqpConn.Close()
-
-	// Set up Notifier
-	rn, err := notifier.NewRabbitNotifier(amqpConn)
-	if err != nil {
-		log.Fatal("failed to create rabbit notifier")
-	}
-	defer rn.Close()
 
 	// Set up Order Consumer
 	rc, err := consumer.NewRabbitConsumer(amqpConn, sess, ordersIngestQueue)
