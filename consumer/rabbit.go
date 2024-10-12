@@ -3,7 +3,6 @@ package consumer
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 
 	"github.com/WilliamJohnathonLea/restaurants-orders/db"
@@ -124,7 +123,7 @@ func NewRabbitConsumer(conn *amqp.Connection, db *dbr.Session, queue string) (Co
 func (rc *RabbitConsumer) sendUserNotification(id string, msg []byte) {
 	rc.notifier.Notify(notifier.RabbitNotification{
 		Exchange:   "user_notifications",
-		RoutingKey: fmt.Sprintf("user_%s", id),
+		RoutingKey: id,
 		Body:       msg,
 	})
 }
@@ -132,7 +131,7 @@ func (rc *RabbitConsumer) sendUserNotification(id string, msg []byte) {
 func (rc *RabbitConsumer) sendRestaurantNotification(id string, msg []byte) {
 	rc.notifier.Notify(notifier.RabbitNotification{
 		Exchange:   "restaurant_notifications",
-		RoutingKey: fmt.Sprintf("restaurant_%s", id),
+		RoutingKey: id,
 		Body:       msg,
 	})
 }
